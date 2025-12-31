@@ -162,6 +162,28 @@ impl App {
                     
                     ui.separator();
                     
+                    ui.label("Rule Mode:");
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(ui_state.rule_mode == ca::RuleMode::Classic, "Classic").clicked() {
+                            ui_state.rule_mode = ca::RuleMode::Classic;
+                            ui_state.rule_mode_changed = true;
+                        }
+                        if ui.selectable_label(ui_state.rule_mode == ca::RuleMode::Sparse, "Sparse").clicked() {
+                            ui_state.rule_mode = ca::RuleMode::Sparse;
+                            ui_state.rule_mode_changed = true;
+                        }
+                        if ui.selectable_label(ui_state.rule_mode == ca::RuleMode::Random, "Random").clicked() {
+                            ui_state.rule_mode = ca::RuleMode::Random;
+                            ui_state.rule_mode_changed = true;
+                        }
+                    });
+                    
+                    if ui_state.rule_mode == ca::RuleMode::Sparse {
+                        ui.add(egui::Slider::new(&mut ui_state.sparse_density, 0.01..=0.5).text("Density"));
+                    }
+                    
+                    ui.separator();
+                    
                     if ui.checkbox(&mut ui_state.use_totalistic, "Totalistic rules (T)").changed() {
                         ui_state.totalistic_changed = true;
                     }
@@ -172,7 +194,11 @@ impl App {
                     
                     ui.label(format!("Grid: {}x{}", grid_width, grid_height));
                     ui.label(format!("Tiles: {}x{}", tile_cols, tile_rows));
-                    ui.label("Space: pause | R: randomize | T: toggle totalistic");
+                    ui.collapsing("Shortcuts", |ui| {
+                        ui.label("Space: pause");
+                        ui.label("R: randomize");
+                        ui.label("T: toggle totalistic");
+                    });
                 });
         });
         
@@ -254,19 +280,16 @@ impl App {
             self.randomize();
         }
         
-        if self.ui_state.totalistic_changed {
+        if self.ui_state.totalistic_changed || self.ui_state.rule_mode_changed {
             self.ui_state.totalistic_changed = false;
+            self.ui_state.rule_mode_changed = false;
             self.update_uniforms();
         }
     }
     
     fn randomize(&mut self) {
         let initial_cells = ca::generate_initial_cells(self.grid_width, self.grid_height, 0.3);
-        let rules = if self.ui_state.use_totalistic {
-            ca::generate_totalistic_rules(self.tile_cols * self.tile_rows)
-        } else {
-            ca::generate_general_rules(self.tile_cols * self.tile_rows)
-        };
+        let rules = self.generate_rules();
         
         self.gpu.queue.write_buffer(
             &self.ca_resources.cell_buffers[0],
@@ -285,6 +308,23 @@ impl App {
         );
     }
     
+    fn generate_rules(&self) -> Vec<u32> {
+        let tile_count = self.tile_cols * self.tile_rows;
+        let density = self.ui_state.sparse_density;
+        
+        match self.ui_state.rule_mode {
+            ca::RuleMode::Classic => ca::generate_classic_rules(tile_count),
+            ca::RuleMode::Sparse if self.ui_state.use_totalistic => {
+                ca::generate_sparse_totalistic_rules(tile_count, density)
+            }
+            ca::RuleMode::Sparse => ca::generate_sparse_rules(tile_count, density),
+            ca::RuleMode::Random if self.ui_state.use_totalistic => {
+                ca::generate_totalistic_rules(tile_count)
+            }
+            ca::RuleMode::Random => ca::generate_general_rules(tile_count),
+        }
+    }
+    
     fn update_uniforms(&mut self) {
         let uniforms = Uniforms {
             grid_width: self.grid_width,
@@ -301,6 +341,13 @@ impl App {
             &self.ca_resources.uniform_buffer,
             0,
             bytemuck::cast_slice(&[uniforms]),
+        );
+        
+        let rules = self.generate_rules();
+        self.gpu.queue.write_buffer(
+            &self.ca_resources.rule_buffer,
+            0,
+            bytemuck::cast_slice(&rules),
         );
     }
 }
