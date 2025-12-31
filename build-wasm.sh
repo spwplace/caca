@@ -3,7 +3,7 @@ set -e
 
 echo "Building CACA for WebAssembly..."
 
-RUSTFLAGS="--cfg=web_sys_unstable_apis" wasm-pack build --target web --release
+RUSTFLAGS="--cfg=web_sys_unstable_apis" wasm-pack build --target web --dev
 
 echo ""
 echo "Build complete! Files in ./pkg/"

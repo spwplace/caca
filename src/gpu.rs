@@ -14,7 +14,7 @@ impl GpuContext {
     pub async fn new(window: Arc<Window>) -> Self {
         let size = window.inner_size();
         
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(target_arch = "wasm32")]
             backends: wgpu::Backends::BROWSER_WEBGPU,
             #[cfg(not(target_arch = "wasm32"))]
@@ -38,8 +38,11 @@ impl GpuContext {
                 &wgpu::DeviceDescriptor {
                     label: Some("GPU Device"),
                     required_features: wgpu::Features::empty(),
+                    #[cfg(target_arch = "wasm32")]
                     required_limits: wgpu::Limits::downlevel_webgl2_defaults()
                         .using_resolution(adapter.limits()),
+                    #[cfg(not(target_arch = "wasm32"))]
+                    required_limits: wgpu::Limits::default(),
                     memory_hints: Default::default(),
                 },
                 None,
@@ -251,7 +254,7 @@ impl CaGpuResources {
             label: Some("CA Compute Pipeline"),
             layout: Some(&compute_pipeline_layout),
             module: &compute_shader,
-            entry_point: "main",
+            entry_point: Some("main"),
             compilation_options: Default::default(),
             cache: None,
         });
@@ -302,13 +305,13 @@ impl CaGpuResources {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &render_shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &render_shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
                     blend: Some(wgpu::BlendState::REPLACE),

@@ -27,7 +27,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM
-        run: RUSTFLAGS="--cfg=web_sys_unstable_apis" wasm-pack build --target web --release
+        run: RUSTFLAGS="--cfg=web_sys_unstable_apis" wasm-pack build --target web --dev
 
       - name: Prepare deployment
         run: |
